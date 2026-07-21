@@ -2,7 +2,10 @@
 
 namespace App\Enums;
 
-enum PurchaseOrderStatus: string
+use Filament\Support\Contracts\HasColor;
+use Filament\Support\Contracts\HasLabel;
+
+enum PurchaseOrderStatus: string implements HasColor, HasLabel
 {
     case Draft = 'draft';
     case Placed = 'placed';
@@ -22,5 +25,20 @@ enum PurchaseOrderStatus: string
     public function canTransitionTo(self $to): bool
     {
         return in_array($to, $this->allowedTransitions(), strict: true);
+    }
+
+    public function getLabel(): string
+    {
+        return ucfirst($this->value);
+    }
+
+    public function getColor(): string
+    {
+        return match ($this) {
+            self::Draft => 'gray',
+            self::Placed => 'warning',
+            self::Received => 'success',
+            self::Cancelled => 'danger',
+        };
     }
 }
