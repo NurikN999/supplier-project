@@ -64,7 +64,6 @@ class DatabaseSeeder extends Seeder
 
             $supplier->tags()->attach($tags[$i]);
 
-            // Same products, different price per supplier — the whole point of the price list.
             foreach ($products as $j => $product) {
                 $supplier->products()->attach($product, ['price' => 100 + ($i * 25) + ($j * 10)]);
             }

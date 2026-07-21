@@ -11,7 +11,6 @@ use Tests\TestCase;
 
 class TenancyTest extends TestCase
 {
-    // Runs against sqlite :memory: (phpunit.xml) — never the postgres dev database.
     use RefreshDatabase;
 
     protected function setUp(): void
