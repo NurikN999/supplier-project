@@ -39,13 +39,11 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderItem::class);
     }
 
-    /** Never stored — 3NF. */
     public function total(): string
     {
         return $this->items->sum(fn (PurchaseOrderItem $item) => $item->qty * $item->unit_price);
     }
 
-    /** ponytail: sequential per tenant, gaps after deletes. The unique index is the real guard. */
     public static function nextNumber(): string
     {
         return 'PO-'.str_pad((string) (static::query()->count() + 1), 4, '0', STR_PAD_LEFT);
@@ -76,6 +74,7 @@ class PurchaseOrder extends Model
 
     /**
      * Receiving is the event that moves stock: every item lands in the warehouse.
+     * @throws \Throwable
      */
     public function receive(): void
     {
