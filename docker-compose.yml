@@ -1,0 +1,61 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: supplier-api-nginx
+    working_dir: /var/www/supplier-api
+    volumes:
+      - ./:/var/www/supplier-api
+      - ./docker/nginx/supplier-local.conf:/etc/nginx/conf.d/default.conf
+    links:
+      - php
+      - postgres
+    depends_on:
+      - php
+      - postgres
+    ports:
+      - 8026:80
+
+  redis:
+    container_name: supplier-api-redis
+    build: ./docker/redis
+    volumes:
+      - redis_supplier-api:/data
+    ports:
+      - "6359:6379"
+
+  php:
+    container_name: supplier-api-php
+    build:
+      context: ./docker/php
+      dockerfile: Dockerfile
+    volumes:
+      - ./:/var/www/supplier-api
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/z-php.ini
+    working_dir: /var/www/supplier-api
+    depends_on:
+      - redis
+      - postgres
+    links:
+      - redis
+      - postgres
+    ports:
+      - 9090:9000
+
+  postgres:
+    container_name: supplier-api-postgres
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: supplier_db
+      POSTGRES_USER: supplier_user
+      POSTGRES_PASSWORD: password
+      PGDATA: /data/postgres
+    volumes:
+      - postgres_supplier-api:/data/postgres
+    ports:
+      - 5482:5432
+
+volumes:
+  postgres_supplier-api:
+    driver: local
+  redis_supplier-api:
+    driver: local
