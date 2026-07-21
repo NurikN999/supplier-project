@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Models\Organization;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -28,6 +29,8 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->login()
+            // Every tenant-owned resource is scoped and auto-filled by Filament.
+            ->tenant(Organization::class, slugAttribute: 'slug', ownershipRelationship: 'organization')
             ->colors([
                 'primary' => Color::Amber,
             ])
