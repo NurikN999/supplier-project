@@ -43,6 +43,15 @@ class TenancyTest extends TestCase
         $this->assertEmpty($beta->suppliers()->whereIn('name', ['Nordwind GmbH', 'Steel & Co'])->get());
     }
 
+    public function test_a_user_cannot_open_another_organizations_panel(): void
+    {
+        $this->actingAs(User::where('email', 'acme@example.com')->firstOrFail());
+
+        $this->get('/admin/acme')->assertSuccessful();
+        // 404, not 403 — Filament will not confirm that another tenant exists.
+        $this->get('/admin/beta')->assertNotFound();
+    }
+
     public function test_the_same_product_has_a_different_price_per_supplier(): void
     {
         $acme = Organization::where('slug', 'acme')->firstOrFail();

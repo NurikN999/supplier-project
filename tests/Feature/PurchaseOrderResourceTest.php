@@ -61,6 +61,24 @@ class PurchaseOrderResourceTest extends TestCase
         $this->assertEquals($product->pivot->price * 3, $order->total());
     }
 
+    public function test_a_product_the_supplier_does_not_offer_cannot_be_ordered(): void
+    {
+        $other = $this->acme->suppliers()->whereKeyNot($this->supplier->id)->firstOrFail();
+        $exclusive = $this->acme->products()->create(['sku' => 'ACM-EX', 'name' => 'Exclusive part']);
+        $other->products()->attach($exclusive, ['price' => 500]);
+
+        Livewire::test(CreatePurchaseOrder::class)
+            ->fillForm([
+                'supplier_id' => $this->supplier->id,
+                'number' => 'PO-0002',
+                'items' => [
+                    ['product_id' => $exclusive->id, 'qty' => 1, 'unit_price' => 500],
+                ],
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['items.0.product_id']);
+    }
+
     public function test_the_receive_action_moves_stock_and_the_place_action_disappears(): void
     {
         $product = $this->supplier->products()->firstOrFail();

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -17,10 +18,16 @@ use Illuminate\Support\Collection;
 
 #[Fillable(['organization_id', 'name', 'email', 'password'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements HasTenants
+class User extends Authenticatable implements FilamentUser, HasTenants
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
+
+    /** Without this, Filament denies every user outside a local environment. */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->organization_id !== null;
+    }
 
     public function organization(): BelongsTo
     {

@@ -81,6 +81,22 @@ class SupplierResourceTest extends TestCase
         );
     }
 
+    public function test_another_organizations_product_cannot_be_attached(): void
+    {
+        $supplier = $this->acme->suppliers()->firstOrFail();
+        // The tenancy global scope hides it, so reach past it deliberately.
+        $foreign = Product::withoutGlobalScopes()->where('sku', 'BF-100')->firstOrFail();
+
+        Livewire::test(ProductsRelationManager::class, [
+            'ownerRecord' => $supplier,
+            'pageClass' => EditSupplier::class,
+        ])
+            ->callAction(TestAction::make('attach')->table(), ['recordId' => $foreign->id, 'price' => 1])
+            ->assertHasActionErrors(['recordId']);
+
+        $this->assertEmpty($supplier->products()->whereKey($foreign->id)->get());
+    }
+
     public function test_a_supplier_is_created_inside_the_current_tenant(): void
     {
         Livewire::test(CreateSupplier::class)
