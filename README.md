@@ -1,58 +1,113 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Supplier Project
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Админ-панель для управления поставщиками с изоляцией данных между организациями.
 
-## About Laravel
+Каждая организация (тенант) ведёт свой список поставщиков, тегов, товаров и заказов.
+Данные одной организации недоступны другой.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**Стек:** Laravel 13, Filament 4, PHP 8.5, PostgreSQL 15, Docker.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Запуск
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
-
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Нужен только Docker.
 
 ```bash
-composer require laravel/boost --dev
+git clone git@github.com:NurikN999/supplier-project.git
+cd supplier-project
 
-php artisan boost:install
+cp .env.example .env
+docker compose up -d --build
+
+docker compose exec php composer install
+docker compose exec php php artisan key:generate
+docker compose exec php php artisan migrate --seed
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Панель: **http://localhost:8026/admin**
 
-## Contributing
+Все `artisan`-команды выполняются внутри контейнера `php` — с хоста имя `postgres`
+не резолвится, и подключение к базе не сработает.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Тестовые пользователи
 
-## Code of Conduct
+Сидер создаёт две организации со своими данными — на них видно, что изоляция работает.
+Войдите под одним пользователем, потом под другим: списки не пересекаются.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Организация  | Логин               | Пароль     |
+|--------------|---------------------|------------|
+| Acme Trading | `acme@example.com`  | `password` |
+| Beta Foods   | `beta@example.com`  | `password` |
 
-## Security Vulnerabilities
+## Тесты
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+docker compose exec php php artisan test
+```
 
-## License
+Тесты идут на sqlite в памяти (см. `phpunit.xml`), базу в Docker они не трогают —
+данные в `supplier_db` останутся на месте.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Что внутри
+
+### Мультитенантность
+
+Организация определяется по слагу в URL: `/admin/acme`, `/admin/beta`.
+Скоупинг делает встроенная мультитенантность Filament — глобальный скоуп на
+моделях и автоподстановка `organization_id` при создании.
+
+Глобальный скоуп покрывает таблицы ресурсов, но **не** покрывает опции связей
+(селекты, фильтры, attach-экшены) — там скоуп проставлен явно через
+`whereBelongsTo(Filament::getTenant())`. Сверху лежит `TenantPolicy` — одна
+политика на все модели тенанта, как второй замок на той же двери.
+
+### Прайс-листы
+
+Один товар могут поставлять разные поставщики, каждый по своей цене — цены лежат
+в пивоте `supplier_products`. Управляются с обеих сторон: «Прайс-лист» в карточке
+поставщика и «Предложения» в карточке товара.
+
+### Жизненный цикл заказа
+
+```
+draft ──► placed ──► received
+  │         │
+  └────► cancelled ◄┘
+```
+
+Переходы описаны в `App\Enums\PurchaseOrderStatus` и проверяются в модели
+`PurchaseOrder`. Неполученный заказ нельзя «принять», полученный нельзя отменить —
+кнопка не появится, а модель всё равно бросит исключение.
+
+**Приёмка меняет состояние системы:** в одной транзакции пишется движение по
+складу (`stock_movements`) на каждую строку заказа и увеличивается остаток
+(`stocks.qty_on_hand`).
+
+Цена строки берётся из прайс-листа именно этого поставщика и сохраняется в заказе
+как исторический факт — если поставщик потом поменяет цену, старый заказ не поедет.
+
+## Схема базы
+
+Схема в третьей нормальной форме. Вычисляемые значения не хранятся: сумма заказа
+считается из строк, `stocks.qty_on_hand` — материализованный остаток, источник
+правды — `stock_movements`.
+
+```
+organizations ─┬─ users
+               ├─ suppliers ─┬─ supplier_tag ── tags
+               │             └─ supplier_products ── products
+               ├─ products ── stocks
+               └─ purchase_orders ─┬─ purchase_order_items ── products
+                                   └─ stock_movements
+```
+
+Уникальность — составная, вместе с `organization_id`: у разных организаций могут
+быть одинаковые SKU, названия тегов и номера заказов.
+
+## Полезные команды
+
+```bash
+docker compose exec php php artisan migrate:fresh --seed   # пересобрать базу
+docker compose exec php vendor/bin/pint                    # форматирование
+docker compose exec php php artisan tinker                 # консоль
+docker compose logs -f php                                 # логи
+```
